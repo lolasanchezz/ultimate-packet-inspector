@@ -1,0 +1,503 @@
+/* the look from the figma design: the map fills the window, everything else
+   floats over it in roboto mono. every colour's in colors.css */
+
+:root {
+    color-scheme: dark;
+    --mono: ui-monospace, Menlo, monospace;
+    --sans: "Roboto Mono", ui-monospace, Menlo, monospace;
+    --display: var(--sans);
+    /* the overview column's left edge - the design's 77px on a wide screen */
+    --gutter: clamp(16px, 3.3vw, 77px);
+    /* how big the overview column is next to the figma design, which is 1 (36px
+       tabs, 20px processes). its text, spacing and width all follow this */
+    --overview-scale: 0.7;
+    --px: calc(var(--overview-scale) * 1px); /* one of the design's pixels */
+    /* the strip across the top, with the logo - everything else starts under it */
+    --brand-height: 34px;
+}
+
+* { box-sizing: border-box; }
+/* hidden means hidden, whatever display a class gives it */
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+    margin: 0;
+    background: var(--map-bg);
+    color: var(--text-primary);
+    font: 13px/1.45 var(--sans);
+    overflow: hidden;
+}
+
+a { color: var(--text-secondary); }
+code { font-family: var(--mono); font-size: 12px; background: var(--hover-wash); padding: 1px 4px; border-radius: 3px; }
+h2 { font: 400 15px var(--sans); margin: 0; }
+h3 { font: 400 13px var(--sans); margin: 14px 0 6px; }
+.spacer { flex: 1; }
+.muted { color: var(--text-muted); }
+.sub { color: var(--text-muted); font-size: 12px; }
+.num { font-variant-numeric: tabular-nums; color: var(--text-secondary); white-space: nowrap; }
+.warn { color: var(--status-warning); }
+
+button { font: 13px var(--sans); color: var(--text-primary); cursor: pointer; }
+button.ghost {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: 2px 8px;
+}
+button.ghost:hover { background: var(--hover-wash); }
+:focus-visible { outline: 2px solid var(--series-1); outline-offset: 1px; }
+
+/* --- the logo and the name, on a strip across the top --- */
+
+.brand {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--brand-height);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 var(--gutter);
+    background: var(--brand-bar);
+    color: var(--brand-text);
+    font: 500 14px var(--sans);
+    z-index: 3;
+}
+/* the logo's drawn black - flipped to white for the dark strip */
+.brand img { display: block; height: calc(var(--brand-height) - 10px); width: auto; filter: invert(1); }
+
+/* --- the map, under everything --- */
+
+.map { position: fixed; inset: var(--brand-height) 0 0 0; }
+/* the ascii basemap, under deck's canvas */
+.map canvas { position: absolute; inset: 0; z-index: 1; }
+.map canvas.ascii { width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+
+/* --- the overview: tabs, sort, chart, processes - down the left --- */
+
+.overview {
+    position: fixed;
+    top: calc(var(--brand-height) + 36 * var(--px));
+    left: var(--gutter);
+    bottom: 0;
+    width: min(calc(470 * var(--px)), calc(100vw - 2 * var(--gutter)));
+    display: flex;
+    flex-direction: column;
+    color: var(--panel-text);
+    text-shadow: 0 0 6px var(--panel-text-shadow);
+    text-transform: lowercase;
+    z-index: 2;
+    /* the map stays draggable between things */
+    pointer-events: none;
+}
+.overview > * { pointer-events: auto; }
+/* what's there to explain the rest - pids, units, arrows, labels - steps back */
+.overview .dim { opacity: 0.5; }
+
+.tabs { font-size: calc(36 * var(--px)); line-height: 1.1; white-space: nowrap; }
+.tabs button {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-shadow: inherit;
+    text-transform: inherit;
+    opacity: 0.45;
+}
+.tabs button:hover, .tabs button[aria-current="page"] { opacity: 1; }
+/* the inspector's wider, for its packets */
+.overview.inspecting { width: min(calc(640 * var(--px)), calc(100vw - 2 * var(--gutter))); }
+
+/* one page or the other, under the tabs */
+.view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+/* "sorted by: ... >", "selected: ... >" - and the menu each opens */
+.pick { position: relative; align-self: flex-start; margin: calc(14 * var(--px)) 0 0 calc(6 * var(--px)); }
+.pick-open {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: calc(20 * var(--px));
+    color: inherit;
+    text-shadow: inherit;
+    text-transform: inherit;
+    text-align: left;
+}
+.pick-open .chev, .pick-open.chev { font-size: calc(26 * var(--px)); line-height: 0; margin-left: calc(8 * var(--px)); vertical-align: calc(-2 * var(--px)); }
+/* the sort line is three things side by side: the stat, how far back, and > */
+.sort { display: flex; align-items: baseline; gap: calc(6 * var(--px)); }
+.period { position: relative; }
+.period-open { text-decoration: underline dotted; text-decoration-color: color-mix(in srgb, var(--panel-text) 40%, transparent); text-underline-offset: 3px; }
+.period-open:disabled { text-decoration: none; cursor: default; }
+/* how far back: a short list right under it */
+.menu.period-menu { left: 0; top: calc(100% + 6px); width: auto; min-width: 130px; padding: 6px; }
+.menu.period-menu [role="option"] { padding: 2px 8px; white-space: nowrap; }
+
+/* the sort menu: white, out to the right of the line */
+.menu {
+    position: absolute;
+    left: calc(100% + 14px);
+    top: 0;
+    width: 290px;
+    padding: 10px 12px 12px;
+    max-height: calc(100vh - 120px - var(--brand-height));
+    overflow-y: auto;
+    background: var(--menu-bg);
+    color: var(--menu-text);
+    text-shadow: none;
+    z-index: 3;
+}
+.menu input {
+    width: 100%;
+    font: 12px var(--sans);
+    color: var(--menu-text);
+    background: var(--menu-field);
+    border: none;
+    padding: 3px 6px;
+    margin-bottom: 6px;
+}
+.menu input::placeholder { color: var(--menu-text); opacity: 0.6; }
+.menu .group { font-size: 15px; margin-top: 4px; }
+.menu .group::before { content: "> "; }
+.menu [role="option"] {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    background: none;
+    border: none;
+    text-align: left;
+    color: inherit;
+    font-size: 12px;
+    padding: 1px 0 1px 16px;
+}
+.menu [role="option"]:hover, .menu [role="option"]:focus-visible, .menu [role="option"].active { background: var(--menu-hover); outline: none; }
+.menu [role="option"] .note { opacity: 0.5; font-size: 10px; white-space: nowrap; }
+.menu .count { font-size: 10px; opacity: 0.5; padding: 0 0 4px; }
+.menu [role="option"][aria-selected="true"]::after { content: " ←"; }
+.menu .none { font-size: 12px; opacity: 0.6; padding-left: 16px; }
+
+/* one line per process over the last minutes, on the design's white axes */
+.chart { position: relative; margin: calc(14 * var(--px)) 0 0; width: min(calc(450 * var(--px)), 100%); outline-offset: 4px; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .axis { stroke: var(--chart-axis); stroke-width: 2; fill: none; }
+.chart .grid { stroke: color-mix(in srgb, var(--chart-axis) 14%, transparent); stroke-width: 1; }
+.chart .tick { fill: var(--panel-text); opacity: 0.6; font: 10px var(--sans); }
+.chart polyline { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+/* a ring in the map's colour keeps dots apart where lines cross */
+.chart .dot { stroke: var(--map-bg); stroke-width: 2; }
+.chart .cross { stroke: var(--panel-text); stroke-opacity: 0.5; stroke-width: 1; }
+.chart-tip {
+    position: absolute;
+    left: calc(100% + 14px);
+    top: 0;
+    pointer-events: none;
+    padding: 6px 8px;
+    background: color-mix(in srgb, var(--map-bg) 92%, transparent);
+    border: 1px solid var(--border);
+    font-size: 11px;
+    text-shadow: none;
+    white-space: nowrap;
+    z-index: 3;
+}
+.chart-tip .when { opacity: 0.6; margin-bottom: 3px; }
+.chart-tip .row { display: flex; align-items: center; gap: 6px; line-height: 1.5; }
+.chart-tip .key { flex: none; width: 10px; height: 2px; }
+.chart-tip b { font-weight: 400; min-width: 5.5em; }
+.chart-tip .who { opacity: 0.6; }
+
+/* the ranked processes - the rest of the column, scrolling on its own */
+.procs {
+    list-style: none;
+    margin: calc(28 * var(--px)) 0 0;
+    padding: 0 0 24px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+.proc { margin-bottom: calc(16 * var(--px)); }
+.proc-head { display: flex; align-items: center; gap: calc(8 * var(--px)); min-height: calc(32 * var(--px)); }
+.proc-name {
+    display: flex;
+    align-items: center;
+    gap: calc(14 * var(--px));
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font-size: calc(20 * var(--px));
+    text-shadow: inherit;
+    text-transform: inherit;
+    text-align: left;
+}
+.proc-name .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.proc-name .label .dim { font-weight: 400; }
+.proc-name .chev { font-size: calc(15 * var(--px)); opacity: 0.5; }
+.rank {
+    flex: none;
+    width: calc(27 * var(--px));
+    height: calc(25 * var(--px));
+    display: grid;
+    place-items: center;
+    background: var(--c);
+    font-size: calc(17 * var(--px));
+    font-weight: 500;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    text-shadow: none;
+}
+.proc.open .rank { background: color-mix(in srgb, var(--c) 42%, transparent); }
+.proc-head .value { margin-left: auto; font-size: max(10px, calc(13 * var(--px))); opacity: 0.6; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pin, .inspect {
+    flex: none;
+    background: none;
+    border: 2px solid transparent;
+    padding: 0 calc(6 * var(--px));
+    font-size: max(10px, calc(14 * var(--px)));
+    line-height: calc(20 * var(--px));
+    color: inherit;
+    text-shadow: inherit;
+}
+.pin, .inspect { opacity: 0.5; }
+.pin[aria-pressed="true"] { border-color: var(--panel-text); opacity: 1; }
+.pin:hover, .inspect:hover { border-color: var(--panel-text); opacity: 1; }
+/* a closed row's inspect button only shows (in place of its number) while the
+   mouse or keyboard is on the row, so it doesn't crowd the name */
+.proc:not(.open) .proc-head .inspect { display: none; }
+.proc:not(.open) .proc-head:is(:hover, :focus-within) .inspect { display: inline-block; }
+.proc:not(.open) .proc-head:is(:hover, :focus-within) .value { display: none; }
+.proc-card .pin { position: absolute; top: calc(6 * var(--px)); right: calc(8 * var(--px)); }
+
+/* an open process: its connections on its colour */
+.proc-card {
+    position: relative;
+    margin-top: calc(4 * var(--px));
+    padding: calc(4 * var(--px)) calc(56 * var(--px)) calc(6 * var(--px)) calc(24 * var(--px));
+    background: color-mix(in srgb, var(--c) 42%, transparent);
+    box-shadow: 6px 4px 4px var(--card-shadow);
+}
+.proc-conns { list-style: none; margin: 0; padding: 0; }
+.proc-conns li { cursor: pointer; padding: calc(4 * var(--px)) 0; }
+.proc-conns li:hover .conn-line { text-decoration: underline; }
+.conn-line { font-size: max(10px, calc(16 * var(--px))); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conn-bytes { font-size: calc(18 * var(--px)); padding-left: calc(36 * var(--px)); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.proc-card .more { font-size: max(10px, calc(14 * var(--px))); opacity: 0.75; padding: 2px 0; }
+
+/* --- the inspector: one process close up --- */
+
+.inspect-pick .pick-open { font-size: calc(36 * var(--px)); }
+.inspector {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    margin-top: calc(8 * var(--px));
+    font-size: max(10px, calc(16 * var(--px)));
+}
+.inspector .about { opacity: 0.6; margin-left: calc(6 * var(--px)); }
+.inspector .empty { opacity: 0.6; margin: calc(20 * var(--px)) 0 0 calc(6 * var(--px)); }
+.istats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: calc(14 * var(--px)) calc(20 * var(--px));
+    margin: calc(24 * var(--px)) 0 0 calc(6 * var(--px));
+}
+.istats .label { font-size: max(10px, calc(14 * var(--px))); opacity: 0.6; }
+.istats .big { font-size: calc(30 * var(--px)); line-height: 1.2; }
+.istats .small { font-size: max(10px, calc(13 * var(--px))); opacity: 0.6; }
+.connected { display: flex; flex-wrap: wrap; align-items: center; gap: calc(6 * var(--px)); margin: calc(24 * var(--px)) 0 0 calc(6 * var(--px)); }
+.connected .label { opacity: 0.6; margin-right: calc(4 * var(--px)); }
+.connected button {
+    background: none;
+    border: 1px solid color-mix(in srgb, var(--panel-text) 35%, transparent);
+    padding: 0 calc(8 * var(--px));
+    font: inherit;
+    font-size: max(10px, calc(14 * var(--px)));
+    color: inherit;
+    text-shadow: inherit;
+    text-transform: inherit;
+}
+.connected button:hover { border-color: var(--panel-text); }
+.packets-head { display: flex; align-items: baseline; gap: calc(10 * var(--px)); margin: calc(28 * var(--px)) 0 calc(6 * var(--px)) calc(6 * var(--px)); }
+.packets-head .sub { color: inherit; opacity: 0.6; font-size: max(10px, calc(14 * var(--px))); }
+.packets { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; padding-bottom: 24px; }
+.packets table { width: 100%; border-collapse: collapse; font-size: max(10px, calc(14 * var(--px))); font-variant-numeric: tabular-nums; }
+.packets th { text-align: left; font-weight: 400; opacity: 0.6; padding: 0 calc(6 * var(--px)) calc(4 * var(--px)); white-space: nowrap; }
+.packets td { padding: calc(3 * var(--px)) calc(6 * var(--px)); border-top: 1px solid var(--border); white-space: nowrap; }
+.packets .remote { max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.packets .remote .ip { opacity: 0.5; margin-left: calc(6 * var(--px)); }
+.packets .right { text-align: right; }
+.packets .dir::before { content: ""; display: inline-block; width: calc(14 * var(--px)); height: 2px; margin-right: calc(6 * var(--px)); vertical-align: middle; background: var(--series-1); }
+.packets .dir.sent::before { background: var(--series-2); }
+
+/* --- top right: how the machine's doing, and whatever's picked on the map --- */
+
+.corner {
+    position: fixed;
+    top: calc(var(--brand-height) + 12px);
+    right: 12px;
+    width: min(400px, calc(100vw - 24px));
+    max-height: calc(100vh - 48px - var(--brand-height));
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    z-index: 2;
+    pointer-events: none;
+}
+.corner > * { pointer-events: auto; }
+.status-line {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px 14px;
+    color: var(--text-secondary);
+    text-shadow: 0 0 6px var(--panel-text-shadow);
+    font-size: 12px;
+    text-transform: lowercase;
+}
+#machine {
+    font: 12px var(--sans);
+    background: var(--map-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 1px 4px;
+}
+.status { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot.good { background: var(--status-good); }
+.dot.off { background: var(--text-muted); }
+.keyed { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+#error { color: var(--status-bad); text-shadow: 0 0 6px var(--panel-text-shadow); }
+#error:empty { display: none; }
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 12px;
+}
+.card-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+summary.card-head { cursor: pointer; list-style: none; margin-bottom: 0; }
+details[open] summary.card-head { margin-bottom: 8px; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list > li { padding: 7px 6px; cursor: pointer; }
+.list > li:hover, .list > li:focus { background: var(--hover-wash); outline: none; }
+.list .row { display: flex; align-items: baseline; gap: 8px; }
+.list .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list .meta { color: var(--text-muted); font-size: 12px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.owners li.tracker .name { color: var(--status-bad); }
+
+.badge {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0 6px;
+    background: var(--tracker-bg);
+    color: var(--status-bad);
+}
+.badge.warn { background: var(--warning-bg); color: var(--status-warning); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.chips span { font-size: 11px; padding: 0 6px; background: var(--hover-wash); color: var(--text-secondary); }
+.swatch { width: 10px; height: 10px; display: inline-block; flex: none; margin-right: 6px; vertical-align: -1px; }
+
+/* --- the endpoint picked on the map --- */
+
+.detail {
+    width: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    box-shadow: 0 8px 30px var(--shadow);
+}
+.detail h2 { word-break: break-all; }
+.detail dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0 0 10px; }
+.detail dt { color: var(--text-muted); }
+.detail dd { margin: 0; overflow-wrap: anywhere; }
+.conns { width: 100%; border-collapse: collapse; font-size: 12px; }
+.conns td { padding: 4px 4px; border-top: 1px solid var(--border); vertical-align: top; }
+.route { margin-top: 10px; }
+.route summary { cursor: pointer; padding: 4px 0; }
+.route summary .muted { margin-left: 6px; }
+.route[open] summary { margin-bottom: 6px; }
+.cables { color: var(--text-secondary); margin: 0 0 6px; }
+.cables b { color: var(--cable-name); font-weight: 400; }
+.hops { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+.hops li { display: grid; grid-template-columns: 22px 1fr auto; gap: 6px; padding: 3px 0; }
+.hops .ttl { color: var(--text-muted); text-align: right; }
+.hops .hop { overflow-wrap: anywhere; }
+
+.credits {
+    position: fixed;
+    right: 12px;
+    bottom: 8px;
+    /* clear of the overview column */
+    max-width: calc(100vw - var(--gutter) - 520 * var(--px));
+    color: var(--text-muted);
+    font-size: 10px;
+    text-align: right;
+    text-shadow: 0 0 4px var(--panel-text-shadow);
+    z-index: 2;
+}
+.overview.inspecting ~ .credits { max-width: calc(100vw - var(--gutter) - 690 * var(--px)); }
+
+/* --- the 24 hours, for the inspector --- */
+
+.timeline-svg { cursor: pointer; }
+.timeline-svg svg { display: block; width: 100%; height: 64px; overflow: visible; }
+.timeline-svg .bars rect { fill: var(--series-1); opacity: 0.75; }
+.timeline-svg .window { fill: var(--timeline-window); stroke: var(--timeline-window-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.timeline-svg text { fill: var(--text-muted); font: 11px var(--sans); }
+
+/* --- pairing --- */
+
+.pairing {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: var(--overlay);
+    padding: 16px;
+    z-index: 10;
+}
+.pairing form { width: min(420px, 100%); display: flex; flex-direction: column; gap: 10px; }
+.pairing p { margin: 0; color: var(--text-secondary); }
+.pairing label { color: var(--text-muted); font-size: 12px; }
+.pairing input {
+    font: 22px var(--mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background: var(--bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+}
+.pairing button[type="submit"] {
+    background: var(--series-1);
+    border: none;
+    padding: 8px;
+    font-size: 15px;
+}
+.pairing .error { color: var(--status-bad); min-height: 1em; }
+
+/* --- phones: the map on top, everything else underneath, scrolling --- */
+
+@media (max-width: 760px) {
+    body { overflow: auto; height: auto; }
+    .brand { position: static; }
+    .map { position: relative; inset: auto; height: 55vh; }
+    .corner { position: static; width: auto; max-height: none; padding: 8px 16px 0; align-items: stretch; }
+    .status-line { justify-content: flex-start; }
+    .overview { position: static; width: auto; padding: 16px; pointer-events: auto; }
+    .procs { overflow: visible; }
+    .menu { left: 0; top: calc(100% + 6px); }
+    .chart-tip { left: 0; top: calc(100% + 6px) !important; }
+    .credits { position: static; text-align: left; padding: 0 16px 16px; }
+}

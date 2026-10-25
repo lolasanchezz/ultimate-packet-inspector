@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="color-scheme" content="dark"/>
+    <title>ultimate packet inspector</title>
+    <link rel="icon" href="/brand/icon.svg"/>
+</head>
+<body>
+<header class="brand">
+    <img src="/brand/mascot.png" alt="" width="144" height="125"/>
+    <span>ultimate packet inspector</span>
+</header>
+
+<div id="map" class="map"></div>
+
+<div class="overview" id="column">
+    <nav class="tabs" aria-label="pages"><button data-tab="overview">overview</button> | <button data-tab="inspector">inspector</button></nav>
+
+    <div class="view" id="overview-view">
+        <div class="pick sort">
+            <button class="pick-open" id="sort-open" aria-haspopup="listbox" aria-expanded="false"><span class="dim">sorted by:</span> <span id="sort-phrase"></span></button>
+            <span class="period">
+                <button class="pick-open period-open" id="period-open" aria-haspopup="listbox" aria-expanded="false" title="change how far back it looks"><span class="dim">(</span><span id="sort-window"></span><span class="dim">)</span></button>
+                <div class="menu period-menu" id="period-menu" role="listbox" aria-label="how far back" hidden></div>
+            </span>
+            <button class="pick-open chev dim" id="sort-chev" aria-label="change what it's sorted by">&gt;</button>
+            <div class="menu" id="sort-menu" hidden>
+                <input id="sort-search" placeholder="search here..." autocomplete="off" spellcheck="false" aria-label="search the stats"/>
+                <div id="sort-items" role="listbox" aria-label="sort by"></div>
+            </div>
+        </div>
+        <div class="chart" id="chart" tabindex="0">
+            <div id="chart-plot"></div>
+            <div class="chart-tip" id="chart-tip" hidden></div>
+        </div>
+        <ol class="procs" id="procs" aria-label="processes"></ol>
+    </div>
+
+    <div class="view" id="inspector-view" hidden>
+        <div class="pick inspect-pick">
+            <button class="pick-open" id="inspect-open" aria-haspopup="listbox" aria-expanded="false"><span class="dim">selected:</span> <span id="inspect-name"></span> <span class="chev dim" aria-hidden="true">&gt;</span></button>
+            <div class="menu" id="inspect-menu" hidden>
+                <input id="inspect-search" placeholder="search here..." autocomplete="off" spellcheck="false" aria-label="search the processes"/>
+                <div id="inspect-items" role="listbox" aria-label="processes"></div>
+            </div>
+        </div>
+        <div class="inspector" id="inspector"></div>
+    </div>
+</div>
+
+<div class="corner">
+    <div class="status-line">
+        <span id="machine-name"></span><select id="machine" aria-label="machine" hidden></select>
+        <span class="status" id="status">connecting</span>
+        <button class="ghost" id="forget" title="stop watching this machine from this browser" hidden>unpair</button>
+    </div>
+    <div id="error" role="alert"></div>
+    <section class="card detail" id="detail" hidden></section>
+</div>
+
+<footer class="credits">
+    IP geolocation by <a href="https://db-ip.com">DB-IP</a> (CC BY 4.0) ·
+    cables from <a href="https://www.submarinecablemap.com">TeleGeography</a> (CC BY-SA 4.0) ·
+    owners from <a href="https://github.com/duckduckgo/tracker-blocklists">DuckDuckGo</a> (CC BY-NC-SA 4.0) ·
+    map by <a href="https://www.naturalearthdata.com">Natural Earth</a> ·
+    airports from <a href="https://ourairports.com">OurAirports</a>
+</footer>
+
+<div class="pairing" id="pairing" hidden>
+    <form class="card" id="pair-form">
+        <h2>Pair with a machine</h2>
+        <p>Run <code>upi pair</code> on the machine you want to watch, then enter the code it prints. Codes work once and last ten minutes.</p>
+        <label for="pair-code">pairing code</label>
+        <input id="pair-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-2345" maxlength="9" required/>
+        <button type="submit">pair</button>
+        <p class="error" id="pair-error" role="alert"></p>
+    </form>
+</div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

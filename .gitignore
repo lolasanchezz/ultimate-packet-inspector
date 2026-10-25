@@ -1,0 +1,21 @@
+# where your database is - .env.example is the template
+.env
+
+# big source rasters (Natural Earth's are ~700MB)
+*.tif
+*.tiff
+*.mov
+*.mp4
+# builds
+agent/upi
+web/dist
+module/dist
+node_modules
+
+# somebody's real traffic - see web/src/demo.ts
+web/public/demo
+
+.DS_Store
+
+# not part of the project
+Palace of Fine Arts.m4a

@@ -1,0 +1,31 @@
+{
+  "name": "upi-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "generate": "spacetime generate --lang typescript --out-dir src/module_bindings --module-path ../module",
+    "cables": "node scripts/build-cables.mjs",
+    "overlays": "node scripts/build-overlays.mjs"
+  },
+  "dependencies": {
+    "@deck.gl/core": "^9.4.0",
+    "@deck.gl/geo-layers": "^9.4.0",
+    "@deck.gl/layers": "^9.4.0",
+    "@fontsource/roboto-mono": "^5.3.0",
+    "spacetimedb": "^2.13.0",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^26.6.5",
+    "@types/topojson-client": "^3.1.5",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.7",
+    "vitest": "^3.2.7"
+  }
+}

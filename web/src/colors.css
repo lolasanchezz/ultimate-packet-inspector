@@ -1,0 +1,70 @@
+/* every colour on the site, in one place. any css colour works (#hex, rgb(),
+   rgba(), hsl(), names). the page uses these directly; the map is drawn on
+   canvases, which read them through theme.ts - so changing one here changes it
+   everywhere. map colours update the next time the map redraws (move it, or
+   refresh) */
+
+:root {
+    /* --- the page --- */
+    --bg: #131c29; /* behind everything */
+    --surface: #1b2636; /* panels, the header, the timeline */
+    --border: rgba(255, 255, 255, 0.10); /* panel + button outlines */
+    --hover-wash: rgba(255, 255, 255, 0.06); /* rows + buttons under the mouse, chips */
+    --shadow: rgba(0, 0, 0, 0.4); /* under the endpoint detail card */
+    --overlay: rgba(10, 15, 23, 0.85); /* behind the pairing form */
+    --brand-bar: #1c2b42; /* the strip across the top - a little lighter than the map */
+    --brand-text: #f0efec; /* "ultimate packet inspector", next to the logo */
+
+    /* --- text --- */
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+
+    /* --- accents + status --- */
+    --series-1: #3987e5; /* the pair button, the timeline's bars, focus rings, legend keys */
+    --series-2: #d95926;
+    --status-good: #0ca30c; /* "agent up" */
+    --status-warning: #fab219; /* sampling, unencrypted */
+    --status-bad: #ff7b72; /* errors, trackers */
+    --live-bg: rgba(12, 163, 12, 0.18); /* the "live" pill */
+    --live-text: #7fdc7f;
+    --replay-bg: rgba(57, 135, 229, 0.2); /* the "replay" pill */
+    --replay-text: #9cc4f3;
+    --tracker-bg: rgba(255, 123, 114, 0.16); /* "tracker" badges */
+    --warning-bg: rgba(250, 178, 25, 0.16); /* "unencrypted" badges */
+    --cable-name: #8fb3e0; /* cable names in a route */
+    --timeline-window: rgba(240, 239, 236, 0.1); /* the part of the timeline on the map */
+    --timeline-window-edge: rgba(240, 239, 236, 0.4);
+
+    /* --- the map --- */
+    --map-bg: #0f1722; /* the sea - everything else is drawn over it */
+    --ascii-land: #3b8eea; /* the land's characters */
+    --ascii-border: #9ccaff; /* country borders */
+    --map-cable: #40608c; /* undersea cables - faint, brighter when traffic's crossing one */
+    --map-home: #f0efec; /* the routers on a picked route */
+    --map-home-square: #d9d9d9; /* this machine */
+    --map-tracker: #ff7b72; /* the ring around a tracker's endpoint */
+
+    /* --- the overview: the column over the map --- */
+    --panel-text: #ffffff;
+    --panel-text-shadow: rgba(0, 0, 0, 0.6); /* keeps it readable over land */
+    --chart-axis: #ffffff;
+    --card-shadow: rgba(0, 0, 0, 0.25); /* under an open process */
+    --menu-bg: #ffffff; /* the sort menu */
+    --menu-text: #000000;
+    --menu-field: #d9d9d9; /* its search box */
+    --menu-hover: rgba(0, 0, 0, 0.08);
+
+    /* --- one per process, for its badge, lines + packets ---
+       picked by pid (pid % how many there are), so it's the same for as long as the
+       process runs. add --process-9 and up for more, or remove some for fewer */
+    --process-1: #ff0000;
+    --process-2: #ff0dae;
+    --process-3: #3829bd;
+    --process-4: #29bd69;
+    --process-5: #b9b1fd;
+    --process-6: #6929bd;
+    --process-7: #0f9fd6; /* the design had #2a292d and #024821 here - too dark to see as lines on the map */
+    --process-8: #ff7f0e;
+    --process-system: #898781; /* traffic no process owns (broadcasts, pings...) */
+}

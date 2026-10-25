@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1010" viewBox="0 0 1500 1010" font-family="-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <!-- ultimate packet inspector, how the pieces connect -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d0c18"/>
+      <stop offset="1" stop-color="#17141f"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="16" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+      <path d="M1 1 L10 6 L1 11" fill="none" stroke="#6cb4f0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .box { fill: #67bb7e; stroke: #8ee39f; stroke-width: 2.5; }
+      .cmd { fill: #67bb7e; stroke: #8ee39f; stroke-width: 2.5; stroke-dasharray: 7 5; }
+      .title { fill: #fff; font-size: 17px; font-weight: 600; }
+      .tag { fill: #123a1e; font-size: 12.5px; font-weight: 600; }
+      .text { fill: #fff; font-size: 13.5px; white-space: pre; }
+      .label { fill: #fff; font-size: 14px; }
+      .big { fill: #fff; font-size: 21px; }
+      .arrow { fill: none; stroke: #6cb4f0; stroke-width: 2.5; stroke-linecap: round; marker-end: url(#arrow); }
+      .region { fill: none; stroke: #ffffff33; stroke-width: 1.5; stroke-dasharray: 7 7; }
+      .muted { fill: #ffffff99; font-size: 13px; }
+    </style>
+  </defs>
+
+  <rect width="1500" height="1010" fill="url(#bg)"/>
+
+  <text x="750" y="72" text-anchor="middle" fill="#fff" font-size="34" font-weight="700">ultimate packet inspector design</text>
+  <text x="750" y="110" text-anchor="middle" fill="#fff" font-size="20">(how the pieces connect - for when i forget)</text>
+
+  <!-- ===== your mac: the agent ===== -->
+  <rect class="region" x="38" y="148" width="642" height="782" rx="14"/>
+  <text class="big" x="60" y="182">your mac - the agent (go)</text>
+  <text class="muted" x="60" y="206">the boxes are goroutines started by upi run - they only talk to each other over channels</text>
+
+  <rect class="box" x="60" y="226" width="250" height="124" rx="3"/>
+  <text class="title" x="78" y="254">capture</text>
+  <text class="tag" x="78" y="274">1 goroutine</text>
+  <text class="text" x="78" y="298">reads packet headers off en0</text>
+  <text class="text" x="78" y="318">(libpcap) + decodes them without</text>
+  <text class="text" x="78" y="338">allocating. payloads stay here</text>
+
+  <rect class="box" x="60" y="394" width="250" height="144" rx="3"/>
+  <text class="title" x="78" y="422">match</text>
+  <text class="tag" x="78" y="442">1 goroutine</text>
+  <text class="text" x="78" y="466">looks each packet's addresses +</text>
+  <text class="text" x="78" y="486">ports up in the connection index.</text>
+  <text class="text" x="78" y="506">no match yet? it waits a moment</text>
+  <text class="text" x="78" y="526">for that connection to show up</text>
+
+  <rect class="box" x="60" y="582" width="250" height="144" rx="3"/>
+  <text class="title" x="78" y="610">state</text>
+  <text class="tag" x="78" y="630">the main goroutine - one select loop</text>
+  <text class="text" x="78" y="654">owns every connection, endpoint,</text>
+  <text class="text" x="78" y="674">packet (8 bytes each) + process's</text>
+  <text class="text" x="78" y="694">cpu, memory and disk. nothing</text>
+  <text class="text" x="78" y="714">else touches it, so no locks</text>
+
+  <rect class="box" x="60" y="770" width="250" height="104" rx="3"/>
+  <text class="title" x="78" y="798">upload</text>
+  <text class="tag" x="78" y="818">1 goroutine</text>
+  <text class="text" x="78" y="842">POSTs each batch as json -</text>
+  <text class="text" x="78" y="862">3 tries, then it skips that one</text>
+
+  <rect class="box" x="400" y="226" width="262" height="222" rx="3"/>
+  <text class="title" x="418" y="254">connection index</text>
+  <text class="tag" x="418" y="274">2 goroutines + a C dispatch queue</text>
+  <text class="text" x="418" y="298">C, through cgo, asks macOS's</text>
+  <text class="text" x="418" y="318">NetworkStatistics for every flow</text>
+  <text class="text" x="418" y="338">(QUIC + root's too). it calls back</text>
+  <text class="text" x="418" y="358">on a dispatch queue; one goroutine</text>
+  <text class="text" x="418" y="378">waits for those, one rebuilds the</text>
+  <text class="text" x="418" y="398">index + swaps it in with an atomic</text>
+  <text class="text" x="418" y="418">pointer. no NetworkStatistics? a</text>
+  <text class="text" x="418" y="438">libproc socket scan every 2s</text>
+
+  <rect class="box" x="400" y="548" width="262" height="164" rx="3"/>
+  <text class="title" x="418" y="576">enrich</text>
+  <text class="tag" x="418" y="596">6 goroutines: 4 lookup, 2 trace</text>
+  <text class="text" x="418" y="620">once for each new address:</text>
+  <text class="text" x="418" y="640">- name (tls, dns, reverse dns)</text>
+  <text class="text" x="418" y="660">- place + network (DB-IP)</text>
+  <text class="text" x="418" y="680">- owner + trackers (DuckDuckGo)</text>
+  <text class="text" x="418" y="700">- traceroute + speed-of-light check</text>
+
+  <rect class="cmd" x="400" y="830" width="262" height="84" rx="3"/>
+  <text class="title" x="418" y="858">upi pair</text>
+  <text class="tag" x="418" y="878">its own command, not part of run</text>
+  <text class="text" x="418" y="902">makes a one-time code</text>
+
+  <!-- the packet path -->
+  <path class="arrow" d="M185 350 L185 390"/>
+  <text class="label" x="196" y="368">a packet</text>
+  <text class="muted" x="196" y="384">chan, 8192 deep</text>
+  <path class="arrow" d="M185 538 L185 578"/>
+  <text class="label" x="196" y="556">packets + their process</text>
+  <text class="muted" x="196" y="572">chan, in batches</text>
+  <path class="arrow" d="M185 726 L185 766"/>
+  <text class="label" x="196" y="744">every 2s (a ticker)</text>
+  <text class="muted" x="196" y="760">chan, 64 batches deep</text>
+
+  <!-- the connection index, read by match -->
+  <path class="arrow" d="M400 430 L314 430"/>
+  <text class="label" x="355" y="404" text-anchor="middle">every open</text>
+  <text class="label" x="355" y="421" text-anchor="middle">connection</text>
+
+  <!-- out to enrich and back -->
+  <path class="arrow" d="M312 616 L396 616"/>
+  <text class="label" x="355" y="606" text-anchor="middle">new address</text>
+  <text class="muted" x="355" y="638" text-anchor="middle">queue,</text>
+  <text class="muted" x="355" y="654" text-anchor="middle">1024 deep</text>
+  <path class="arrow" d="M400 690 L316 690"/>
+  <text class="label" x="355" y="712" text-anchor="middle">place, owner,</text>
+  <text class="label" x="355" y="729" text-anchor="middle">route</text>
+
+  <!-- ===== the database ===== -->
+  <text class="big" x="870" y="372" text-anchor="middle">database</text>
+  <circle cx="870" cy="555" r="160" fill="#a9492b" stroke="#e46a3d" stroke-width="3"/>
+  <text x="870" y="436" text-anchor="middle" fill="#fff" font-size="18" font-weight="600">SpacetimeDB</text>
+  <text x="870" y="458" text-anchor="middle" fill="#ffffffcc" font-size="13.5">on maincloud</text>
+  <text class="text" x="760" y="496">- private tables: machines,</text>
+  <text class="text" x="760" y="516">  connections, endpoints, routes,</text>
+  <text class="text" x="760" y="536">  packets, per-minute traffic,</text>
+  <text class="text" x="760" y="556">  process usage</text>
+  <text class="text" x="760" y="586">- reducers (ingest, pair, watch),</text>
+  <text class="text" x="760" y="606">  each one a transaction</text>
+  <text class="text" x="760" y="636">- views: each browser only sees</text>
+  <text class="text" x="760" y="656">  the machines it's paired with</text>
+
+  <!-- prune, on a loop -->
+  <path class="arrow" d="M948 414 C 968 330 1040 330 1004 446"/>
+  <text class="label" x="1012" y="318">prune every 5 min</text>
+  <text class="muted" x="1012" y="337">(a scheduled reducer)</text>
+  <text class="muted" x="1012" y="356">packets: a day, the rest: 30</text>
+
+  <!-- agent in -->
+  <path class="arrow" d="M312 790 L650 790 C 720 790 776 760 806 706"/>
+  <text class="label" x="490" y="780" text-anchor="middle">ingest - one http POST a batch</text>
+  <path class="arrow" d="M662 872 C 760 872 850 820 876 718"/>
+  <text class="label" x="812" y="858">pair code</text>
+
+  <!-- ===== the website ===== -->
+  <rect class="box" x="1192" y="232" width="250" height="76" rx="3"/>
+  <text class="title" x="1210" y="260">you</text>
+  <text class="text" x="1210" y="286">any browser - your phone too</text>
+
+  <rect class="box" x="1152" y="430" width="330" height="190" rx="3"/>
+  <text class="title" x="1170" y="458">website</text>
+  <text class="text" x="1170" y="484">static (vite + deck.gl), hosted anywhere</text>
+  <text class="text" x="1170" y="514">- overview: every process, ranked,</text>
+  <text class="text" x="1170" y="534">  by any stat, with a chart</text>
+  <text class="text" x="1170" y="560">- inspector: one process + its packets</text>
+  <text class="text" x="1170" y="586">- map: the ascii world, routes,</text>
+  <text class="text" x="1170" y="606">  packets moving along them</text>
+
+  <path class="arrow" d="M1317 308 L1317 426"/>
+  <text class="label" x="1328" y="372">opens it</text>
+
+  <!-- database <-> website -->
+  <path class="arrow" d="M1030 522 C 1070 508 1110 504 1148 504"/>
+  <text class="label" x="1090" y="474" text-anchor="middle">live updates</text>
+  <text class="label" x="1090" y="491" text-anchor="middle">(websocket)</text>
+  <path class="arrow" d="M1148 580 C 1110 580 1070 586 1030 600"/>
+  <text class="label" x="1090" y="626" text-anchor="middle">claim a code,</text>
+  <text class="label" x="1090" y="643" text-anchor="middle">pick a machine</text>
+
+  <text class="muted" x="750" y="978" text-anchor="middle">the agent never talks to the website - everything goes through the database, so the site works from anywhere once it's paired</text>
+</svg>

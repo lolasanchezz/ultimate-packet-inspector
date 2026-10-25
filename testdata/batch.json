@@ -1,0 +1,116 @@
+{
+  "t": 1800000002000000,
+  "stats": {
+    "iface": "en0",
+    "pps": 0,
+    "dropped": 0,
+    "nstat": true,
+    "geo": true,
+    "sampled": 1
+  },
+  "home": {
+    "lat": 37.77,
+    "lon": -122.42,
+    "place": ""
+  },
+  "conns": [
+    {
+      "id": 1800000000000001,
+      "pid": 7,
+      "process": "curl",
+      "proto": 6,
+      "remoteIp": "1.1.1.1",
+      "remotePort": 443,
+      "localPort": 50000,
+      "host": "",
+      "firstUs": 1800000000000000,
+      "lastUs": 1800000000000800,
+      "bytesUp": 120,
+      "bytesDown": 1500,
+      "pktsUp": 1,
+      "pktsDown": 1,
+      "dUp": 120,
+      "dDown": 1500,
+      "dPkts": 2,
+      "dPktsUp": 1,
+      "rttMs": 0,
+      "open": false,
+      "plaintext": false,
+      "system": false
+    }
+  ],
+  "endpoints": [
+    {
+      "ip": "1.1.1.1",
+      "kind": "public",
+      "host": "one.one.one.one",
+      "ptr": "one.one.one.one",
+      "lat": -33.87,
+      "lon": 151.21,
+      "located": true,
+      "city": "Sydney",
+      "region": "",
+      "country": "Australia",
+      "countryCode": "AU",
+      "asn": 13335,
+      "org": "Cloudflare, Inc.",
+      "owner": "Cloudflare, Inc.",
+      "categories": [],
+      "tracker": false,
+      "rttMs": 4,
+      "possible": false,
+      "drawnLat": 37.34,
+      "drawnLon": -121.89,
+      "route": "1.1.1.0/24"
+    }
+  ],
+  "routes": [
+    {
+      "prefix": "1.1.1.0/24",
+      "dst": "1.1.1.1",
+      "tracedUs": 1800000000000000,
+      "hops": [
+        {
+          "ttl": 1,
+          "ip": "10.0.0.1",
+          "rttMs": 2,
+          "ptr": "",
+          "asn": 0,
+          "org": "",
+          "lat": 0,
+          "lon": 0,
+          "located": false,
+          "city": "",
+          "country": "",
+          "from": "",
+          "possible": false
+        },
+        {
+          "ttl": 2,
+          "ip": "1.1.1.1",
+          "rttMs": 4,
+          "ptr": "",
+          "asn": 0,
+          "org": "",
+          "lat": 37.34,
+          "lon": -121.89,
+          "located": true,
+          "city": "",
+          "country": "",
+          "from": "",
+          "possible": true
+        }
+      ]
+    }
+  ],
+  "chunks": [
+    {
+      "conn": 1800000000000001,
+      "t0": 1800000000000000,
+      "n": 2,
+      "w": 1,
+      "data": "AAAAAHgAgAAgAwAA3AUAAA=="
+    }
+  ],
+  "procs": []
+}

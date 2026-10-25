@@ -1,0 +1,32 @@
+{
+  "chunk": {
+    "conn": 42,
+    "t0": 1700000000000000,
+    "n": 3,
+    "w": 3,
+    "data": "AAAAAEoAgkD0AQAAQgAQOdASEwD//5hA"
+  },
+  "records": [
+    {
+      "timeUs": 1700000000000000,
+      "size": 74,
+      "out": true,
+      "flags": 2,
+      "ttl": 64
+    },
+    {
+      "timeUs": 1700000000000500,
+      "size": 66,
+      "out": false,
+      "flags": 16,
+      "ttl": 57
+    },
+    {
+      "timeUs": 1700000001250000,
+      "size": 65535,
+      "out": true,
+      "flags": 24,
+      "ttl": 64
+    }
+  ]
+}
