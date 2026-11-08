@@ -1,6 +1,6 @@
-// Package upload sends what the agent sees to the SpacetimeDB module (see
-// module/src/index.ts) - one ingest call per batch interval
-package upload
+// Package wire is the shape of what the agent sees, one batch per interval -
+// what goes to the desktop app (see agent/broadcast) and what upi dump prints
+package wire
 
 import (
 	"cmp"
@@ -9,8 +9,8 @@ import (
 	"slices"
 )
 
-// Batch is everything that changed since the last one. it goes to the ingest
-// reducer as a json string, so the field names here are the module's
+// Batch is everything that changed since the last one. the field names are what
+// the desktop app and agent/broadcast expect
 type Batch struct {
 	TimeUs    int64       `json:"t"`
 	Stats     Stats       `json:"stats"`

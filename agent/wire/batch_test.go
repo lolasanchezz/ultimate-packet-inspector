@@ -1,4 +1,4 @@
-package upload
+package wire
 
 import (
 	"encoding/json"

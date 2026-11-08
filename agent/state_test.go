@@ -12,7 +12,7 @@ import (
 	"upi/capture"
 	"upi/enrich"
 	"upi/procs"
-	"upi/upload"
+	"upi/wire"
 )
 
 var (
@@ -25,7 +25,7 @@ var (
 
 func testState() *state {
 	s := newState(1, enrich.NewEnricher(nil), "en0", true, true, 0)
-	s.setHome(upload.Home{Lat: sf.Lat, Lon: sf.Lon})
+	s.setHome(wire.Home{Lat: sf.Lat, Lon: sf.Lon})
 	// test pids are made up - don't read whatever's really running as them
 	s.readUsage = func(int32) (procs.Usage, bool) { return procs.Usage{}, false }
 	s.startTime = func(int32) int64 { return 0 }
@@ -109,8 +109,8 @@ func TestImpossibleEndpointDrawnAtLastGoodHop(t *testing.T) {
 	}
 }
 
-// a whole batch as the agent sends it, for the module's tests to ingest
-// (module/src/index.test.ts) - so the two sides can't drift apart. run with
+// a whole batch as the agent sends it, for agent/broadcast's tests to ingest
+// (broadcast/store_test.go) - so the two sides can't drift apart. run with
 // UPDATE_FIXTURE=1 to rewrite it
 func TestBatchFixture(t *testing.T) {
 	s := testState()
@@ -149,13 +149,13 @@ func TestProcUsageIsSinceTheLastBatch(t *testing.T) {
 	s.packets([]capture.Matched{packet(7, true, 100, time.Now().UnixMicro()), packet(8, true, 100, time.Now().UnixMicro())})
 	b := s.batch(time.Now(), 0)
 	// 7's first sample has nothing to compare with; 8 isn't ours to read, so it's only when it started
-	want := []upload.ProcUsage{{Pid: 7, Process: "curl", StartUs: 7000, Measured: true, Mem: 50 << 20}, {Pid: 8, Process: "curl", StartUs: 8000}}
+	want := []wire.ProcUsage{{Pid: 7, Process: "curl", StartUs: 7000, Measured: true, Mem: 50 << 20}, {Pid: 8, Process: "curl", StartUs: 8000}}
 	if !slices.Equal(b.Procs, want) {
 		t.Fatalf("first batch: %+v", b.Procs)
 	}
 	used[7] = procs.Usage{CPU: 2*time.Second + 250*time.Millisecond, Footprint: 60 << 20, Disk: 5000}
 	b = s.batch(time.Now(), 0)
-	if b.Procs[0] != (upload.ProcUsage{Pid: 7, Process: "curl", StartUs: 7000, Measured: true, CPUms: 250, Mem: 60 << 20, Disk: 4000}) {
+	if b.Procs[0] != (wire.ProcUsage{Pid: 7, Process: "curl", StartUs: 7000, Measured: true, CPUms: 250, Mem: 60 << 20, Disk: 4000}) {
 		t.Errorf("second batch: %+v", b.Procs)
 	}
 }

@@ -456,7 +456,7 @@ details[open] summary.card-head { margin-bottom: 8px; }
 .timeline-svg .window { fill: var(--timeline-window); stroke: var(--timeline-window-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .timeline-svg text { fill: var(--text-muted); font: 11px var(--sans); }
 
-/* --- pairing --- */
+/* --- waiting for the agent --- */
 
 .pairing {
     position: fixed;
@@ -467,25 +467,9 @@ details[open] summary.card-head { margin-bottom: 8px; }
     padding: 16px;
     z-index: 10;
 }
-.pairing form { width: min(420px, 100%); display: flex; flex-direction: column; gap: 10px; }
+.pairing .card { width: min(420px, 100%); display: flex; flex-direction: column; gap: 10px; }
 .pairing p { margin: 0; color: var(--text-secondary); }
-.pairing label { color: var(--text-muted); font-size: 12px; }
-.pairing input {
-    font: 22px var(--mono);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    background: var(--bg);
-    color: var(--text-primary);
-    border: 1px solid var(--border);
-    padding: 8px 10px;
-}
-.pairing button[type="submit"] {
-    background: var(--series-1);
-    border: none;
-    padding: 8px;
-    font-size: 15px;
-}
-.pairing .error { color: var(--status-bad); min-height: 1em; }
+.pairing .error { color: var(--text-muted); min-height: 1em; }
 
 /* --- phones: the map on top, everything else underneath, scrolling --- */
 

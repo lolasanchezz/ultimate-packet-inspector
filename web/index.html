@@ -54,7 +54,6 @@
     <div class="status-line">
         <span id="machine-name"></span><select id="machine" aria-label="machine" hidden></select>
         <span class="status" id="status">connecting</span>
-        <button class="ghost" id="forget" title="stop watching this machine from this browser" hidden>unpair</button>
     </div>
     <div id="error" role="alert"></div>
     <section class="card detail" id="detail" hidden></section>
@@ -68,15 +67,12 @@
     airports from <a href="https://ourairports.com">OurAirports</a>
 </footer>
 
-<div class="pairing" id="pairing" hidden>
-    <form class="card" id="pair-form">
-        <h2>Pair with a machine</h2>
-        <p>Run <code>upi pair</code> on the machine you want to watch, then enter the code it prints. Codes work once and last ten minutes.</p>
-        <label for="pair-code">pairing code</label>
-        <input id="pair-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-2345" maxlength="9" required/>
-        <button type="submit">pair</button>
-        <p class="error" id="pair-error" role="alert"></p>
-    </form>
+<div class="pairing waiting" id="waiting" hidden>
+    <div class="card">
+        <h2>Waiting for the agent</h2>
+        <p>The app starts it, and picks it up as soon as it's going. If it doesn't come up, its log is in <code>~/Library/Logs/upi.log</code> - or run <code>upi run</code> yourself to see why.</p>
+        <p class="error" id="waiting-status" role="status"></p>
+    </div>
 </div>
 
 <script type="module" src="/src/main.ts"></script>

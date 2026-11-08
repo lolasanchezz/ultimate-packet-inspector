@@ -29,7 +29,6 @@ export function renderHeader(model: Model, machines: Machine[], status: string) 
         if (!m.geo) bits.push(`<span class="warn" title="run scripts/fetch-geo.sh on the machine">no geo databases</span>`);
     }
     $('status').innerHTML = bits.join('');
-    $('forget').hidden = !model.machine;
 }
 
 // --- the overview ---

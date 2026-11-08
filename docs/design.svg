@@ -55,11 +55,13 @@
   <text class="text" x="78" y="694">cpu, memory and disk. nothing</text>
   <text class="text" x="78" y="714">else touches it, so no locks</text>
 
-  <rect class="box" x="60" y="770" width="250" height="104" rx="3"/>
-  <text class="title" x="78" y="798">upload</text>
-  <text class="tag" x="78" y="818">1 goroutine</text>
-  <text class="text" x="78" y="842">POSTs each batch as json -</text>
-  <text class="text" x="78" y="862">3 tries, then it skips that one</text>
+  <rect class="box" x="60" y="770" width="250" height="144" rx="3"/>
+  <text class="title" x="78" y="798">broadcast</text>
+  <text class="tag" x="78" y="818">1 goroutine + an http server</text>
+  <text class="text" x="78" y="842">keeps the last 26h: connections,</text>
+  <text class="text" x="78" y="862">endpoints, per-minute traffic.</text>
+  <text class="text" x="78" y="882">never waits on a viewer - one</text>
+  <text class="text" x="78" y="902">that falls behind is dropped</text>
 
   <rect class="box" x="400" y="226" width="262" height="222" rx="3"/>
   <text class="title" x="418" y="254">connection index</text>
@@ -82,10 +84,11 @@
   <text class="text" x="418" y="680">- owner + trackers (DuckDuckGo)</text>
   <text class="text" x="418" y="700">- traceroute + speed-of-light check</text>
 
-  <rect class="cmd" x="400" y="830" width="262" height="84" rx="3"/>
-  <text class="title" x="418" y="858">upi pair</text>
-  <text class="tag" x="418" y="878">its own command, not part of run</text>
-  <text class="text" x="418" y="902">makes a one-time code</text>
+  <rect class="cmd" x="400" y="770" width="262" height="104" rx="3"/>
+  <text class="title" x="418" y="798">upi run -with-app</text>
+  <text class="tag" x="418" y="818">how the app starts it</text>
+  <text class="text" x="418" y="842">its own process. it stops when</text>
+  <text class="text" x="418" y="862">the app's end of stdin closes</text>
 
   <!-- the packet path -->
   <path class="arrow" d="M185 350 L185 390"/>
@@ -112,56 +115,51 @@
   <text class="label" x="355" y="712" text-anchor="middle">place, owner,</text>
   <text class="label" x="355" y="729" text-anchor="middle">route</text>
 
-  <!-- ===== the database ===== -->
-  <text class="big" x="870" y="372" text-anchor="middle">database</text>
+  <!-- ===== the local port ===== -->
+  <text class="big" x="870" y="372" text-anchor="middle">a local port</text>
   <circle cx="870" cy="555" r="160" fill="#a9492b" stroke="#e46a3d" stroke-width="3"/>
-  <text x="870" y="436" text-anchor="middle" fill="#fff" font-size="18" font-weight="600">SpacetimeDB</text>
-  <text x="870" y="458" text-anchor="middle" fill="#ffffffcc" font-size="13.5">on maincloud</text>
-  <text class="text" x="760" y="496">- private tables: machines,</text>
-  <text class="text" x="760" y="516">  connections, endpoints, routes,</text>
-  <text class="text" x="760" y="536">  packets, per-minute traffic,</text>
-  <text class="text" x="760" y="556">  process usage</text>
-  <text class="text" x="760" y="586">- reducers (ingest, pair, watch),</text>
-  <text class="text" x="760" y="606">  each one a transaction</text>
-  <text class="text" x="760" y="636">- views: each browser only sees</text>
-  <text class="text" x="760" y="656">  the machines it's paired with</text>
+  <text x="870" y="436" text-anchor="middle" fill="#fff" font-size="18" font-weight="600">127.0.0.1:7323</text>
+  <text x="870" y="458" text-anchor="middle" fill="#ffffffcc" font-size="13.5">GET /events (server-sent events)</text>
+  <text class="text" x="760" y="496">- on connect: a snapshot of</text>
+  <text class="text" x="760" y="516">  everything the agent's kept</text>
+  <text class="text" x="760" y="546">- then every 2s: the rows that</text>
+  <text class="text" x="760" y="566">  batch changed</text>
+  <text class="text" x="760" y="596">- loopback only. pages can read</text>
+  <text class="text" x="760" y="616">  it if they're the app (or the</text>
+  <text class="text" x="760" y="636">  dev server), nothing else</text>
 
-  <!-- prune, on a loop -->
-  <path class="arrow" d="M948 414 C 968 330 1040 330 1004 446"/>
-  <text class="label" x="1012" y="318">prune every 5 min</text>
-  <text class="muted" x="1012" y="337">(a scheduled reducer)</text>
-  <text class="muted" x="1012" y="356">packets: a day, the rest: 30</text>
+  <!-- agent out -->
+  <path class="arrow" d="M312 790 L366 790 C 384 790 384 741 402 741 L700 741 C 730 741 748 716 760 684"/>
+  <text class="label" x="531" y="762" text-anchor="middle">each batch, once - however many apps</text>
 
-  <!-- agent in -->
-  <path class="arrow" d="M312 790 L650 790 C 720 790 776 760 806 706"/>
-  <text class="label" x="490" y="780" text-anchor="middle">ingest - one http POST a batch</text>
-  <path class="arrow" d="M662 872 C 760 872 850 820 876 718"/>
-  <text class="label" x="812" y="858">pair code</text>
-
-  <!-- ===== the website ===== -->
+  <!-- ===== the desktop app ===== -->
   <rect class="box" x="1192" y="232" width="250" height="76" rx="3"/>
   <text class="title" x="1210" y="260">you</text>
-  <text class="text" x="1210" y="286">any browser - your phone too</text>
+  <text class="text" x="1210" y="286">on this mac</text>
 
-  <rect class="box" x="1152" y="430" width="330" height="190" rx="3"/>
-  <text class="title" x="1170" y="458">website</text>
-  <text class="text" x="1170" y="484">static (vite + deck.gl), hosted anywhere</text>
-  <text class="text" x="1170" y="514">- overview: every process, ranked,</text>
-  <text class="text" x="1170" y="534">  by any stat, with a chart</text>
-  <text class="text" x="1170" y="560">- inspector: one process + its packets</text>
-  <text class="text" x="1170" y="586">- map: the ascii world, routes,</text>
-  <text class="text" x="1170" y="606">  packets moving along them</text>
+  <rect class="box" x="1152" y="430" width="330" height="230" rx="3"/>
+  <text class="title" x="1170" y="458">desktop app</text>
+  <text class="text" x="1170" y="484">wails - a window, nothing else. the</text>
+  <text class="text" x="1170" y="504">page is web/ (vite + deck.gl)</text>
+  <text class="text" x="1170" y="534">- overview: every process, ranked,</text>
+  <text class="text" x="1170" y="554">  by any stat, with a chart</text>
+  <text class="text" x="1170" y="580">- inspector: one process + its packets</text>
+  <text class="text" x="1170" y="606">- map: the ascii world, routes,</text>
+  <text class="text" x="1170" y="626">  packets moving along them</text>
 
   <path class="arrow" d="M1317 308 L1317 426"/>
   <text class="label" x="1328" y="372">opens it</text>
 
-  <!-- database <-> website -->
-  <path class="arrow" d="M1030 522 C 1070 508 1110 504 1148 504"/>
-  <text class="label" x="1090" y="474" text-anchor="middle">live updates</text>
-  <text class="label" x="1090" y="491" text-anchor="middle">(websocket)</text>
-  <path class="arrow" d="M1148 580 C 1110 580 1070 586 1030 600"/>
-  <text class="label" x="1090" y="626" text-anchor="middle">claim a code,</text>
-  <text class="label" x="1090" y="643" text-anchor="middle">pick a machine</text>
+  <!-- port -> app -->
+  <path class="arrow" d="M1030 540 C 1070 528 1110 524 1148 524"/>
+  <text class="label" x="1090" y="494" text-anchor="middle">live updates</text>
+  <text class="label" x="1090" y="511" text-anchor="middle">(EventSource)</text>
 
-  <text class="muted" x="750" y="978" text-anchor="middle">the agent never talks to the website - everything goes through the database, so the site works from anywhere once it's paired</text>
+  <!-- app starts the agent -->
+  <path class="arrow" d="M1152 640 C 1060 760 990 822 900 822 L666 822"/>
+  <text class="label" x="910" y="850">starts the bundled upi when it opens,</text>
+  <text class="label" x="910" y="868">unless one's already listening</text>
+
+  <text class="muted" x="750" y="978" text-anchor="middle">the agent and the app are separate processes that only meet at the port - a frozen or slow window never holds up capture</text>
+
 </svg>

@@ -1,10 +1,10 @@
-// ultimate packet inspector - the website. pairs with a machine running the agent,
-// then draws everything it talks to, live - an overview of every process, or
-// one close up in the inspector
+// ultimate packet inspector - the desktop app's page. listens to the agent on
+// this machine and draws everything it talks to, live - an overview of every
+// process, or one close up in the inspector
 import {feature} from 'topojson-client';
 import type {Topology} from 'topojson-specification';
 import landTopo from 'world-atlas/land-110m.json';
-import {Db, type Conn} from './db';
+import {AgentSource, type Conn} from './db';
 import {DemoSource} from './demo';
 import {Land, type Cable} from './geo';
 import {WorldMap} from './map';
@@ -44,16 +44,11 @@ function save(k: string, v: string) {
     }
 }
 
-// where the database is: what the build was given (the repo's .env), unless a
-// link says otherwise - `upi pair` links carry #db=...&server=... so a site built
-// without them still works, and it remembers them for next time
+// where the agent is: what the build was given (UPI_AGENT, or the agent's
+// default), unless the page's address says otherwise with #agent=...
 function settings() {
     const hash = new URLSearchParams(location.hash.slice(1));
-    const server = hash.get('server') ?? (import.meta.env.UPI_DB ? import.meta.env.UPI_SERVER : load('upi.server') ?? import.meta.env.UPI_SERVER);
-    const db = hash.get('db') ?? (import.meta.env.UPI_DB || load('upi.db') || '');
-    if (hash.has('db')) save('upi.db', db);
-    if (hash.has('server')) save('upi.server', server);
-    return {server, db, pair: hash.get('pair') ?? undefined, demo: hash.has('demo')};
+    return {agent: hash.get('agent') ?? import.meta.env.UPI_AGENT, demo: hash.has('demo')};
 }
 
 // the land outline isn't drawn any more (the ascii basemap is), but it's still how
@@ -62,16 +57,12 @@ const topoLand = landTopo as unknown as Topology;
 const land = new Land(landRings(feature(topoLand, topoLand.objects.land)));
 
 async function main() {
-    const {server, db: database, pair, demo} = settings();
-    if (!database && !demo) {
-        showPairing("This site was built without a database. Set UPI_DB in the repo's .env and rebuild, or open the link `upi pair` prints.");
-        return;
-    }
+    const {agent, demo} = settings();
     const cables: Cable[] = (await (await fetch(`${import.meta.env.BASE_URL}data/cables.json`)).json()).cables;
     const router = new Router(land, cables);
     const map = new WorldMap($<HTMLDivElement>('map'), cables, key => select(key), key => hover(key));
     map.loadAscii(`${import.meta.env.BASE_URL}data/`).catch(showError);
-    const db = demo ? new DemoSource(`${import.meta.env.BASE_URL}demo/batches.jsonl`) : new Db(server, database);
+    const db = demo ? new DemoSource(`${import.meta.env.BASE_URL}demo/batches.jsonl`) : new AgentSource(agent);
 
     // what the viewer's picked
     let tab: 'overview' | 'inspector' = 'overview';
@@ -166,16 +157,13 @@ async function main() {
 
     function refresh() {
         const status = db.status.state === 'error' ? `error: ${db.status.message}` : db.status.state;
-        if (!db.ready) {
-            $('status').textContent = status;
-            return;
-        }
         const machines = db.machines();
-        if (!machines.length) {
-            showPairing();
+        if (!db.ready || !machines.length) {
+            $('status').textContent = status;
+            showWaiting(db.status.message);
             return;
         }
-        hidePairing();
+        hideWaiting();
         const watch = db.watch();
         const machine = machines.find(m => m.id === watch?.machineId);
         // not watching anything yet, or a replay left over from before - the overview's live
@@ -347,35 +335,6 @@ async function main() {
             show('inspector', procs[next].key);
         }
     });
-    $('forget').addEventListener('click', () => {
-        const m = model?.machine;
-        if (m && confirmForget(m.name)) db.forget(m.id).catch(showError);
-    });
-
-    $<HTMLFormElement>('pair-form').addEventListener('submit', e => {
-        e.preventDefault();
-        const input = $<HTMLInputElement>('pair-code');
-        claim(input.value);
-    });
-    function claim(code: string) {
-        $('pair-error').textContent = '';
-        db.claim(code)
-            .then(() => {
-                history.replaceState(null, '', location.pathname); // the code's spent
-                refresh();
-            })
-            .catch(err => ($('pair-error').textContent = err?.message ?? String(err)));
-    }
-    if (pair) {
-        $<HTMLInputElement>('pair-code').value = pair;
-        // as soon as there's a connection to claim it with
-        const off = db.onChange(() => {
-            if (db.status.state === 'connected') {
-                off();
-                claim(pair);
-            }
-        });
-    }
 }
 
 // a button that opens a menu with a search box, like the design's sort menu. the
@@ -440,31 +399,30 @@ function dropdown(name: string, render: (query: string) => void, pick: (value: s
     return menu;
 }
 
-// a plain in-page confirm - browser dialogs block everything else
-function confirmForget(name: string): boolean {
-    const b = $('forget');
-    if (b.dataset.armed) return true;
-    b.dataset.armed = '1';
-    b.textContent = `unpair ${name}? click again`;
-    setTimeout(() => {
-        delete b.dataset.armed;
-        b.textContent = 'unpair';
-    }, 4000);
-    return false;
+function showWaiting(message?: string) {
+    $('waiting').hidden = false;
+    $('waiting-status').textContent = message ?? '';
 }
 
-function showPairing(message?: string) {
-    $('pairing').hidden = false;
-    if (message) $('pair-error').textContent = message;
-}
-
-function hidePairing() {
-    $('pairing').hidden = true;
+function hideWaiting() {
+    $('waiting').hidden = true;
 }
 
 function showError(err: unknown) {
     $('error').textContent = err instanceof Error ? err.message : String(err);
     setTimeout(() => ($('error').textContent = ''), 6000);
+}
+
+// in the desktop app, links (the credits) open in the browser rather than in
+// place of the app
+const wails = (window as {runtime?: {BrowserOpenURL(url: string): void}}).runtime;
+if (wails) {
+    document.addEventListener('click', e => {
+        const a = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="http"]');
+        if (!a) return;
+        e.preventDefault();
+        wails.BrowserOpenURL(a.href);
+    });
 }
 
 main().catch(showError);

@@ -2,8 +2,12 @@ package enrich
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"net/netip"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -190,9 +194,24 @@ func (e *Enricher) locateHop(rh *RouteHop, home *LatLon, rttMs float64) {
 	}
 }
 
-// PublicIP asks OpenDNS which address our queries come from - one dns query, no
-// http, and it comes from this process so it's filtered out like the rest
+// PublicIP finds the address this machine's traffic comes from. first it asks
+// OpenDNS - one dns query, no http - but plenty of networks (schools, offices,
+// hotels) only let dns go to their own resolver, so then it asks over https.
+// either way it's this process's traffic, so it's filtered out like the rest
 func PublicIP(ctx context.Context) (netip.Addr, error) {
+	ip, dnsErr := publicIPOverDNS(ctx)
+	if dnsErr == nil {
+		return ip, nil
+	}
+	for _, url := range []string{"https://api.ipify.org", "https://icanhazip.com"} {
+		if ip, err := publicIPOverHTTPS(ctx, url); err == nil {
+			return ip, nil
+		}
+	}
+	return netip.Addr{}, fmt.Errorf("%w, and neither ipify nor icanhazip answered", dnsErr)
+}
+
+func publicIPOverDNS(ctx context.Context) (netip.Addr, error) {
 	r := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		var d net.Dialer
 		return d.DialContext(ctx, "udp", "208.67.222.222:53") // resolver1.opendns.com
@@ -204,4 +223,31 @@ func PublicIP(ctx context.Context) (netip.Addr, error) {
 		return netip.Addr{}, err
 	}
 	return addrs[0].Unmap(), nil
+}
+
+// the address, as plain text
+func publicIPOverHTTPS(ctx context.Context, url string) (netip.Addr, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return netip.Addr{}, fmt.Errorf("%s: %s", url, res.Status)
+	}
+	body, err := io.ReadAll(io.LimitReader(res.Body, 64))
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	ip, err := netip.ParseAddr(strings.TrimSpace(string(body)))
+	if err != nil {
+		return netip.Addr{}, fmt.Errorf("%s: %w", url, err)
+	}
+	return ip.Unmap(), nil
 }

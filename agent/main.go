@@ -1,42 +1,37 @@
 // upi is the agent: it captures every packet on this machine, works out which
-// process it belongs to and who's on the other end, and streams it all to
-// SpacetimeDB for the website to draw
+// process it belongs to and who's on the other end, and streams it all to the
+// desktop app to draw
 package main
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/netip"
-	"net/url"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
+	"upi/broadcast"
 	"upi/capture"
 	"upi/enrich"
 	"upi/procs"
-	"upi/upload"
+	"upi/wire"
 )
 
 const usage = `upi - the ultimate packet inspector agent
 
-  upi run      capture + upload to SpacetimeDB (what launchd runs)
-  upi start    print a pairing code, then run
-  upi dump     capture and print each batch as json, without uploading
-  upi pair     print a code for pairing the website with this machine
-  upi revoke   unpair every website viewer from this machine
+  upi run      capture, and broadcast to the desktop app (what launchd runs)
+  upi dump     capture and print each batch as json instead
   upi install  run at login with launchd
   upi uninstall
 
-where the database is comes from UPI_SERVER, UPI_DB and UPI_SITE in the repo's
-.env (or the environment) - see .env.example. flags override them:
+the desktop app (desktop/) connects to it on this machine. flags:
 `
 
 func main() {
@@ -51,21 +46,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
-	envFile := applyEnv(&cfg)
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
-	fs.StringVar(&cfg.Server, "server", cfg.Server, "SpacetimeDB host")
-	fs.StringVar(&cfg.Database, "db", cfg.Database, "the database the module is published as")
-	fs.StringVar(&cfg.Site, "site", cfg.Site, "the website's url, for pairing links")
-	fs.StringVar(&cfg.Name, "name", cfg.Name, "what this machine's called on the website")
+	fs.StringVar(&cfg.Listen, "listen", cfg.Listen, "where the desktop app connects (a loopback address)")
+	fs.StringVar(&cfg.Name, "name", cfg.Name, "what this machine's called in the app")
 	fs.StringVar(&cfg.Iface, "i", cfg.Iface, "interface to capture on")
-	fs.Float64Var(&cfg.Interval, "interval", cfg.Interval, "seconds between uploads")
+	fs.Float64Var(&cfg.Interval, "interval", cfg.Interval, "seconds between batches")
 	fs.IntVar(&cfg.MaxPPS, "max-pps", cfg.MaxPPS, "record 1 in n packets above this rate (byte counts stay exact)")
 	chunks := fs.Bool("chunks", false, "dump: include each batch's packet data")
 	runFor := fs.Duration("for", 0, "stop after this long (0 = until interrupted)")
+	withApp := fs.Bool("with-app", false, "stop when stdin closes - how the desktop app runs it, so it never outlives the app")
 	fs.Usage = func() { fmt.Fprint(os.Stderr, usage); fs.PrintDefaults() }
 	fs.Parse(os.Args[2:])
-	// checked before anything's saved, so a bad one can't get stuck in the config
-	if (cmd == "run" || cmd == "start" || cmd == "dump") && !(cfg.Interval > 0) {
+	// checked before anything starts, so a bad one's caught straight away
+	if (cmd == "run" || cmd == "dump") && !(cfg.Interval > 0) {
 		log.Fatalf("the interval has to be more than 0 seconds, not %v - check -interval, or intervalSeconds in config.json", cfg.Interval)
 	}
 
@@ -76,38 +69,31 @@ func main() {
 		ctx, cancel = context.WithTimeout(ctx, *runFor)
 		defer cancel()
 	}
-
-	if envFile != "" && cmd != "install" && cmd != "uninstall" {
-		log.Printf("settings from %s", envFile)
+	if *withApp {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		defer cancel()
+		// the app holds the other end. when it goes - quit, crashed, killed - this does too
+		go func() {
+			io.Copy(io.Discard, os.Stdin)
+			cancel()
+		}()
 	}
 
 	switch cmd {
 	case "dump":
 		err = run(ctx, cfg, nil, *chunks)
 	case "run":
-		var client *upload.Client
-		if client, err = connect(ctx, &cfg); err == nil {
-			err = run(ctx, cfg, client, false)
-		}
-	case "start":
-		var client *upload.Client
-		if client, err = connect(ctx, &cfg); err == nil {
-			if err = pair(ctx, cfg, client); err == nil {
-				err = run(ctx, cfg, client, false)
+		srv := broadcast.NewServer(broadcast.NewStore(cfg.Name, cfg.Iface))
+		ctx, cancel := context.WithCancelCause(ctx)
+		go func() {
+			if err := srv.Serve(ctx, cfg.Listen); err != nil && ctx.Err() == nil {
+				cancel(err)
 			}
-		}
-	case "pair":
-		var client *upload.Client
-		if client, err = connect(ctx, &cfg); err == nil {
-			err = pair(ctx, cfg, client)
-		}
-	case "revoke":
-		var client *upload.Client
-		if client, err = connect(ctx, &cfg); err == nil {
-			err = client.Call(ctx, "revoke_viewers")
-		}
-		if err == nil {
-			fmt.Println("every viewer's been unpaired")
+		}()
+		err = run(ctx, cfg, srv, false)
+		if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, context.Canceled) && !errors.Is(cause, context.DeadlineExceeded) {
+			err = cause
 		}
 	case "install":
 		err = install()
@@ -122,62 +108,8 @@ func main() {
 	}
 }
 
-// connect makes sure the agent has an identity and this machine is registered
-func connect(ctx context.Context, cfg *config) (*upload.Client, error) {
-	if cfg.Database == "" {
-		return nil, errors.New("no database yet - set UPI_DB in the repo's .env (see .env.example), or pass -db")
-	}
-	// a token only works on the server that made it. one saved before this was
-	// kept has been working where it is
-	server := strings.TrimSuffix(cfg.Server, "/")
-	if cfg.Token != "" && cfg.TokenServer == "" {
-		cfg.TokenServer = server
-	}
-	if cfg.Token == "" || cfg.TokenServer != server {
-		id, token, err := upload.NewIdentity(ctx, cfg.Server)
-		if err != nil {
-			return nil, err
-		}
-		cfg.Identity, cfg.Token, cfg.TokenServer = id, token, server
-		log.Printf("made a new identity for this machine on %s: %s", server, id)
-	}
-	if err := saveConfig(*cfg); err != nil {
-		return nil, fmt.Errorf("saving config: %w", err)
-	}
-	client := upload.NewClient(cfg.Server, cfg.Database, cfg.Token)
-	if err := client.Call(ctx, "register_machine", cfg.Name, cfg.Iface); err != nil {
-		return nil, fmt.Errorf("registering with %s/%s: %w", cfg.Server, cfg.Database, err)
-	}
-	return client, nil
-}
-
-// pair makes a one-time code for the website. it's good for ten minutes
-func pair(ctx context.Context, cfg config, client *upload.Client) error {
-	const alphabet = "ABCDEFGHJKMNPQRSTVWXYZ23456789" // nothing that reads as something else
-	b := make([]byte, 8)
-	rand.Read(b)
-	for i := range b {
-		b[i] = alphabet[int(b[i])%len(alphabet)]
-	}
-	code := string(b)
-	if err := client.Call(ctx, "set_pair_code", code); err != nil {
-		return err
-	}
-	fmt.Printf("pairing code: %s-%s (good for 10 minutes)\n", code[:4], code[4:])
-	if cfg.Site != "" {
-		// the link carries the database (and server, if it isn't maincloud) so the
-		// site needs nothing set up to use it
-		link := fmt.Sprintf("%s/#pair=%s&db=%s", strings.TrimSuffix(cfg.Site, "/"), code, url.QueryEscape(cfg.Database))
-		if cfg.Server != "https://maincloud.spacetimedb.com" {
-			link += "&server=" + url.QueryEscape(strings.Replace(cfg.Server, "http", "ws", 1))
-		}
-		fmt.Printf("or open %s\n", link)
-	}
-	return nil
-}
-
-// run is the agent itself. with no client, batches are printed instead of uploaded
-func run(ctx context.Context, cfg config, client *upload.Client, withChunks bool) error {
+// run is the agent itself. with no server, batches are printed instead of broadcast
+func run(ctx context.Context, cfg config, srv *broadcast.Server, withChunks bool) error {
 	src, err := capture.Open(cfg.Iface)
 	if err != nil {
 		return err
@@ -227,12 +159,12 @@ func run(ctx context.Context, cfg config, client *upload.Client, withChunks bool
 	}()
 	go matcher.Run(ctx, packets, matched)
 
-	homes := make(chan upload.Home, 1)
+	homes := make(chan wire.Home, 1)
 	go findHome(ctx, cfg, geo, homes)
 
-	batches := make(chan *upload.Batch, 64)
-	if client != nil {
-		go uploader(ctx, client, batches)
+	batches := make(chan *wire.Batch, 64)
+	if srv != nil {
+		go broadcaster(ctx, srv, batches)
 	} else {
 		go dumper(ctx, batches, withChunks)
 	}
@@ -257,7 +189,7 @@ func run(ctx context.Context, cfg config, client *upload.Client, withChunks bool
 			select {
 			case batches <- st.batch(now, src.Dropped()):
 			default:
-				log.Print("uploads are falling behind - dropped a batch")
+				log.Print("broadcasting is falling behind - dropped a batch")
 			}
 		}
 	}
@@ -265,9 +197,9 @@ func run(ctx context.Context, cfg config, client *upload.Client, withChunks bool
 
 // where this machine is: pinned in the config, or wherever its public address is.
 // that's asked until there's an answer - at login the network's often not up yet
-func findHome(ctx context.Context, cfg config, geo *enrich.Geo, out chan<- upload.Home) {
+func findHome(ctx context.Context, cfg config, geo *enrich.Geo, out chan<- wire.Home) {
 	if cfg.Home != nil {
-		out <- upload.Home{Lat: cfg.Home.Lat, Lon: cfg.Home.Lon, Place: cfg.Home.Place}
+		out <- wire.Home{Lat: cfg.Home.Lat, Lon: cfg.Home.Lon, Place: cfg.Home.Place}
 		return
 	}
 	var ip netip.Addr
@@ -293,32 +225,23 @@ func findHome(ctx context.Context, cfg config, geo *enrich.Geo, out chan<- uploa
 		place += ", " + p.CountryCode
 	}
 	log.Printf("home is %s (from %s)", place, ip)
-	out <- upload.Home{Lat: p.Lat, Lon: p.Lon, Place: place}
+	out <- wire.Home{Lat: p.Lat, Lon: p.Lon, Place: place}
 }
 
-// uploads one batch at a time, trying a few times before giving up on one
-func uploader(ctx context.Context, client *upload.Client, batches <-chan *upload.Batch) {
+// hands each batch to the server. it's here rather than in the loop above so
+// a slow app can't hold up capture
+func broadcaster(ctx context.Context, srv *broadcast.Server, batches <-chan *wire.Batch) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case b := <-batches:
-			for attempt := 1; ; attempt++ {
-				err := client.Ingest(ctx, b)
-				if err == nil || ctx.Err() != nil {
-					break
-				}
-				if attempt == 3 {
-					log.Printf("upload failed, skipping a batch: %v", err)
-					break
-				}
-				time.Sleep(time.Duration(attempt) * time.Second)
-			}
+			srv.Publish(b)
 		}
 	}
 }
 
-func dumper(ctx context.Context, batches <-chan *upload.Batch, withChunks bool) {
+func dumper(ctx context.Context, batches <-chan *wire.Batch, withChunks bool) {
 	enc := json.NewEncoder(os.Stdout)
 	for {
 		select {

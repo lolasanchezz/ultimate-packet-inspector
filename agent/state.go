@@ -10,11 +10,11 @@ import (
 	"upi/capture"
 	"upi/enrich"
 	"upi/procs"
-	"upi/upload"
+	"upi/wire"
 )
 
 const (
-	connIdle     = 10 * time.Minute // a closed connection with no traffic for this long is forgotten (it's already uploaded)
+	connIdle     = 10 * time.Minute // a closed connection with no traffic for this long is forgotten (it's already been sent)
 	endpointIdle = time.Hour
 	retraceAfter = 6 * time.Hour
 	// a trace that never came back (it failed - no answers, say) is asked for again
@@ -50,7 +50,7 @@ type conn struct {
 	dUp, dDown, dPkts, dPktsUp           uint64 // since the last batch
 	plaintext                            bool
 	rttMs                                float64 // the latest round trip - kept once its flows are gone
-	recs                                 []upload.Record
+	recs                                 []wire.Record
 	thin                                 uint8  // this batch, 1 in 2^thin of what's sampled is recorded
 	thinN                                uint32 // counting towards the next one
 	dirty                                bool
@@ -85,7 +85,7 @@ type route struct {
 }
 
 type state struct {
-	self     int32 // our own pid - lookups, traces and uploads aren't anyone's traffic
+	self     int32 // our own pid - lookups and traces aren't anyone's traffic
 	enricher *enrich.Enricher
 	nstat    bool // flow events are coming in (vs socket scans)
 	geo      bool
@@ -105,7 +105,7 @@ type state struct {
 	tracing   map[netip.Prefix]time.Time
 
 	home      *enrich.LatLon
-	homeRow   *upload.Home
+	homeRow   *wire.Home
 	homeDirty bool
 
 	// the burst guard: 1 in sampleEvery packets gets recorded, so a big download
@@ -182,7 +182,7 @@ func (s *state) packets(batch []capture.Matched) {
 		c.dirty = true
 		if s.sampleN%s.sampleEvery == 0 {
 			if c.thinN%(1<<c.thin) == 0 {
-				c.recs = append(c.recs, upload.Record{TimeUs: m.TimeUs, Size: m.Size, Out: m.Dir == capture.Out, Flags: m.Flags, TTL: m.TTL})
+				c.recs = append(c.recs, wire.Record{TimeUs: m.TimeUs, Size: m.Size, Out: m.Dir == capture.Out, Flags: m.Flags, TTL: m.TTL})
 				if len(c.recs) >= maxConnRecords {
 					c.recs = everyOther(c.recs)
 					c.thin++
@@ -207,7 +207,7 @@ func (s *state) packets(batch []capture.Matched) {
 }
 
 // the 1st, 3rd, 5th... - in place
-func everyOther(recs []upload.Record) []upload.Record {
+func everyOther(recs []wire.Record) []wire.Record {
 	n := 0
 	for i := 0; i < len(recs); i += 2 {
 		recs[n] = recs[i]
@@ -394,7 +394,7 @@ func (s *state) physics(ep *endpoint) {
 	ep.drawn = enrich.Toward(*s.home, ep.info.Place.LatLon, min(enrich.MaxKm(ep.rttMs)/2, 500))
 }
 
-func (s *state) setHome(h upload.Home) {
+func (s *state) setHome(h wire.Home) {
 	s.home = &enrich.LatLon{Lat: h.Lat, Lon: h.Lon}
 	s.homeRow, s.homeDirty = &h, true
 	s.enricher.SetHome(*s.home)
@@ -405,17 +405,17 @@ func (s *state) setHome(h upload.Home) {
 
 // batch collects everything that changed since the last one, and forgets
 // whatever's been idle long enough
-func (s *state) batch(now time.Time, dropped int) *upload.Batch {
+func (s *state) batch(now time.Time, dropped int) *wire.Batch {
 	nowUs := now.UnixMicro()
 	pps := float64(s.batchPkts) / max(now.Sub(s.lastBatch).Seconds(), 0.001)
-	b := &upload.Batch{
+	b := &wire.Batch{
 		TimeUs:    nowUs,
-		Stats:     upload.Stats{Iface: s.iface, PPS: math.Round(pps*10) / 10, Dropped: dropped, Nstat: s.nstat, Geo: s.geo, Sampled: s.sampleEvery},
-		Conns:     []upload.Conn{},
-		Endpoints: []upload.Endpoint{},
-		Routes:    []upload.Route{},
-		Chunks:    []upload.Chunk{},
-		Procs:     []upload.ProcUsage{},
+		Stats:     wire.Stats{Iface: s.iface, PPS: math.Round(pps*10) / 10, Dropped: dropped, Nstat: s.nstat, Geo: s.geo, Sampled: s.sampleEvery},
+		Conns:     []wire.Conn{},
+		Endpoints: []wire.Endpoint{},
+		Routes:    []wire.Route{},
+		Chunks:    []wire.Chunk{},
+		Procs:     []wire.ProcUsage{},
 	}
 	if s.homeDirty {
 		b.Home, s.homeDirty = s.homeRow, false
@@ -430,7 +430,7 @@ func (s *state) batch(now time.Time, dropped int) *upload.Batch {
 		}
 		b.Conns = append(b.Conns, s.connRow(c, nowUs))
 		if len(c.recs) > 0 {
-			b.Chunks = append(b.Chunks, upload.Encode(c.id, s.sampleEvery<<c.thin, c.recs))
+			b.Chunks = append(b.Chunks, wire.Encode(c.id, s.sampleEvery<<c.thin, c.recs))
 			c.recs = c.recs[:0]
 		}
 		c.thin, c.thinN = 0, 0
@@ -458,7 +458,7 @@ func (s *state) batch(now time.Time, dropped int) *upload.Batch {
 			b.Routes = append(b.Routes, routeRow(r.r))
 			r.dirty = false
 		} else if !used[p] && now.Sub(r.r.At) > retraceAfter {
-			delete(s.routes, p) // it's uploaded, and traced again if it's needed
+			delete(s.routes, p) // it's been sent, and traced again if it's needed
 		}
 	}
 	for p, asked := range s.tracing {
@@ -479,17 +479,17 @@ func (s *state) batch(now time.Time, dropped int) *upload.Batch {
 // what every process with a connection used since the last batch, and when it
 // started. the first time one's seen there's nothing to compare with, so it's
 // only its memory; root's processes only say when they started
-func (s *state) procUsage() []upload.ProcUsage {
+func (s *state) procUsage() []wire.ProcUsage {
 	names := make(map[int32]string)
 	for k, c := range s.conns {
 		if k.pid > 0 {
 			names[k.pid] = c.process
 		}
 	}
-	out := []upload.ProcUsage{}
+	out := []wire.ProcUsage{}
 	seen := make(map[int32]procs.Usage, len(names))
 	for pid, name := range names {
-		row := upload.ProcUsage{Pid: pid, Process: name, StartUs: s.startTime(pid)}
+		row := wire.ProcUsage{Pid: pid, Process: name, StartUs: s.startTime(pid)}
 		if u, ok := s.readUsage(pid); ok {
 			seen[pid] = u
 			row.Measured, row.Mem = true, u.Footprint
@@ -504,11 +504,11 @@ func (s *state) procUsage() []upload.ProcUsage {
 		}
 	}
 	s.usage = seen
-	slices.SortFunc(out, func(a, b upload.ProcUsage) int { return cmp.Compare(a.Pid, b.Pid) })
+	slices.SortFunc(out, func(a, b wire.ProcUsage) int { return cmp.Compare(a.Pid, b.Pid) })
 	return out
 }
 
-func (s *state) connRow(c *conn, nowUs int64) upload.Conn {
+func (s *state) connRow(c *conn, nowUs int64) wire.Conn {
 	open := s.openFlows[c.key] > 0
 	if !s.nstat {
 		open = nowUs-c.lastUs < scanOpenFor.Microseconds()
@@ -517,7 +517,7 @@ func (s *state) connRow(c *conn, nowUs int64) upload.Conn {
 	if c.key.remote.IsValid() {
 		remote = c.key.remote.String()
 	}
-	return upload.Conn{
+	return wire.Conn{
 		ID: c.id, Pid: c.key.pid, Process: c.process, Proto: c.key.proto,
 		RemoteIP: remote, RemotePort: c.key.remotePort, LocalPort: c.localPort, Host: c.host,
 		FirstUs: c.firstUs, LastUs: c.lastUs,
@@ -527,9 +527,9 @@ func (s *state) connRow(c *conn, nowUs int64) upload.Conn {
 	}
 }
 
-func endpointRow(ep *endpoint) upload.Endpoint {
+func endpointRow(ep *endpoint) wire.Endpoint {
 	i := ep.info
-	row := upload.Endpoint{
+	row := wire.Endpoint{
 		IP: ep.addr.String(), Kind: i.Kind.String(), Host: ep.host, PTR: i.PTR,
 		Lat: i.Place.Lat, Lon: i.Place.Lon, Located: i.Located,
 		City: i.Place.City, Region: i.Place.Region, Country: i.Place.Country, CountryCode: i.Place.CountryCode,
@@ -546,10 +546,10 @@ func endpointRow(ep *endpoint) upload.Endpoint {
 	return row
 }
 
-func routeRow(r enrich.Route) upload.Route {
-	row := upload.Route{Prefix: r.Prefix.String(), Dst: r.Dst.String(), TracedUs: r.At.UnixMicro(), Hops: []upload.Hop{}}
+func routeRow(r enrich.Route) wire.Route {
+	row := wire.Route{Prefix: r.Prefix.String(), Dst: r.Dst.String(), TracedUs: r.At.UnixMicro(), Hops: []wire.Hop{}}
 	for _, h := range r.Hops {
-		hop := upload.Hop{
+		hop := wire.Hop{
 			TTL: h.TTL, RTTms: h.RTTms, PTR: h.PTR, ASN: h.Network.ASN, Org: h.Network.Org,
 			Lat: h.Place.Lat, Lon: h.Place.Lon, Located: h.Located, City: h.Place.City,
 			Country: h.Place.CountryCode, From: h.From, Possible: h.Possible,

@@ -1,9 +1,7 @@
-// a stand-in for the database that plays back `upi dump -chunks` output, a batch
-// every two seconds, looping - for working on the site without an agent or a
-// SpacetimeDB to hand. open the site with #demo (the dump goes in
+// a stand-in for the agent that plays back `upi dump -chunks` output, a batch
+// every two seconds, looping - for working on the app without an agent running. open the site with #demo (the dump goes in
 // public/demo/batches.jsonl, which is gitignored - it's somebody's real traffic)
-import type {Identity} from 'spacetimedb';
-import type {Conn, Endpoint, Machine, PacketChunk, ProcRow, ProcUsage, Rollup, Route, Status, Traffic, Watch} from './db';
+import type {Conn, Endpoint, Machine, PacketChunk, ProcRow, ProcUsage, Rollup, Route, Source, Status, Traffic, Watch} from './db';
 
 type Batch = {
     t: number;
@@ -18,10 +16,9 @@ type Batch = {
 
 const big = (n: number) => BigInt(Math.max(0, Math.trunc(n)));
 
-export class DemoSource {
+export class DemoSource implements Source {
     status: Status = {state: 'connecting'};
     ready = false;
-    identity?: Identity;
     #listeners = new Set<() => void>();
     #batches: Batch[] = [];
     #next = 0;
@@ -38,7 +35,7 @@ export class DemoSource {
 
     constructor(url: string) {
         this.#machine = {
-            id: 1, agent: undefined as unknown as Identity, name: 'demo', iface: 'en0', homeLat: 0, homeLon: 0, homePlace: '',
+            id: 1, name: 'demo', iface: 'en0', homeLat: 0, homeLon: 0, homePlace: '',
             lastSeenUs: 0n, pps: 0, dropped: 0n, nstat: true, geo: true, sampled: 1, lastBatchUs: 0n,
         };
         fetch(url)
@@ -103,7 +100,7 @@ export class DemoSource {
             const id = ++this.#chunkId;
             this.#chunks.set(id, {id, machineId: 1, connId: BigInt(c.conn), t0Us: us(c.t0), n: c.n, weight: c.w, data: c.data});
         }
-        // the live view only keeps the last 30 seconds of packets, like the module
+        // the live view only keeps the last 30 seconds of packets, like the agent
         for (const [id, c] of this.#chunks) if (c.t0Us < nowUs - 30_000_000n) this.#chunks.delete(id);
         // and a conn shows while it's been active in the last 15 minutes
         for (const [k, c] of this.#conns) if (c.lastUs < nowUs - 900_000_000n) this.#conns.delete(k);
@@ -121,7 +118,7 @@ export class DemoSource {
     }
 
     machines = (): Machine[] => [this.#machine];
-    watch = (): Watch => ({identity: undefined as unknown as Identity, machineId: 1, fromUs: 0n, toUs: 0n, overviewFromUs: 0n});
+    watch = (): Watch => ({machineId: 1, fromUs: 0n, toUs: 0n, overviewFromUs: 0n});
     conns = () => [...this.#conns.values()];
     endpoints = () => [...this.#endpoints.values()];
     routes = () => [...this.#routes.values()];
@@ -131,8 +128,6 @@ export class DemoSource {
     procUsage = () => [...this.#usage.values()];
     procs = () => [...this.#procs.values()];
 
-    // nothing to pair with or replay - the demo's always live
-    claim = async (_code: string) => {};
-    forget = async (_machineId: number) => {};
+    // the demo's always live
     setWatch = async (_machineId: number, _fromMs: number, _toMs: number, _overviewFromMs: number) => {};
 }

@@ -19,3 +19,14 @@ web/public/demo
 
 # not part of the project
 Palace of Fine Arts.m4a
+
+/ultimate packet inspector.app
+
+# the desktop app, built by scripts/build-app.sh
+/ultimate packet inspector.app
+desktop/build/bin
+desktop/frontend/*
+!desktop/frontend/dist
+desktop/frontend/dist/*
+!desktop/frontend/dist/.gitkeep
+web/package.json.md5

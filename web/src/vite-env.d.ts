@@ -1,7 +1,6 @@
 /// <reference types="vite/client" />
 
-// set from UPI_SERVER + UPI_DB in the repo's .env - see vite.config.ts
+// set from UPI_AGENT at build time, if it's set - see vite.config.ts
 interface ImportMetaEnv {
-    readonly UPI_SERVER: string; // as a websocket url
-    readonly UPI_DB: string; // the name the module's published under, '' if it wasn't set
+    readonly UPI_AGENT: string; // where the agent broadcasts, e.g. http://127.0.0.1:7323
 }
